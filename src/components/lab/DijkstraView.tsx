@@ -27,7 +27,7 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
   sourceNode,
   destNode,
 }) => {
-  const trace = result?.trace || [];
+  const trace: DijkstraTraceStep[] = result?.trace || [];
 
   // Compute state up to currentStepIndex
   const activeVisitedNodes = new Set<string>();
@@ -62,7 +62,8 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
   }
 
   const isFinalStep = currentStepIndex >= trace.length - 1;
-  const optimalPath = isFinalStep && result?.reachable ? result.path : [];
+  // Show optimal path as soon as result is known without waiting for stepper to finish
+  const optimalPath = result?.reachable ? result.path : [];
 
   // Player route analysis
   const playerPath = playerStats.visitedNodeIds;
@@ -105,9 +106,18 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
           <div className="w-full flex items-center justify-between pb-2 mb-2 border-b border-slate-850 text-xs text-slate-400">
             <span className="font-semibold text-slate-200">Network Graph</span>
             <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Settled</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Relaxing</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-sky-500" /> Optimal Path</span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Settled
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Relaxing
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-500" /> Optimal Path
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-400" /> Player Route
+              </span>
             </div>
           </div>
 
@@ -120,37 +130,108 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
               const p1 = getNodePos(edge.from);
               const p2 = getNodePos(edge.to);
               const isOptimal = isEdgeInPath(edge.from, edge.to, optimalPath);
+              const isPlayerEdge = isEdgeInPath(edge.from, edge.to, playerPath);
               const isRelaxing =
                 currentRelaxEdge &&
                 ((currentRelaxEdge.from === edge.from && currentRelaxEdge.to === edge.to) ||
                   (currentRelaxEdge.from === edge.to && currentRelaxEdge.to === edge.from));
 
-              let stroke = '#334155';
-              let strokeWidth = 2.5;
-
-              if (isOptimal) {
-                stroke = '#38bdf8';
-                strokeWidth = 4.5;
-              } else if (isRelaxing) {
-                stroke = '#fbbf24';
-                strokeWidth = 4;
-              }
-
               const midX = (p1.x + p2.x) / 2;
               const midY = (p1.y + p2.y) / 2;
 
+              const isBadgeRelaxing = Boolean(isRelaxing);
+              const isBadgeOptimal = isOptimal;
+              const isBadgePlayer = isPlayerEdge;
+
+              const badgeStroke = isBadgeRelaxing
+                ? '#fbbf24'
+                : isBadgeOptimal
+                ? '#38bdf8'
+                : isBadgePlayer
+                ? '#a78bfa'
+                : '#334155';
+
+              const badgeTextColor = isBadgeRelaxing
+                ? '#fbbf24'
+                : isBadgeOptimal
+                ? '#38bdf8'
+                : isBadgePlayer
+                ? '#c084fc'
+                : '#94a3b8';
+
               return (
                 <g key={`${edge.from}-${edge.to}`}>
-                  <line
-                    x1={p1.x}
-                    y1={p1.y}
-                    x2={p2.x}
-                    y2={p2.y}
-                    stroke={stroke}
-                    strokeWidth={strokeWidth}
-                    strokeLinecap="round"
-                    strokeDasharray={isRelaxing ? '6,4' : undefined}
-                  />
+                  {/* Base edge rendering */}
+                  {isOptimal && isPlayerEdge ? (
+                    <>
+                      {/* Player route dashed line */}
+                      <line
+                        x1={p1.x}
+                        y1={p1.y}
+                        x2={p2.x}
+                        y2={p2.y}
+                        stroke="#a78bfa"
+                        strokeWidth={5}
+                        strokeLinecap="round"
+                        strokeDasharray="6,4"
+                      />
+                      {/* Optimal path line drawn on top */}
+                      <line
+                        x1={p1.x}
+                        y1={p1.y}
+                        x2={p2.x}
+                        y2={p2.y}
+                        stroke="#38bdf8"
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                      />
+                    </>
+                  ) : isOptimal ? (
+                    <line
+                      x1={p1.x}
+                      y1={p1.y}
+                      x2={p2.x}
+                      y2={p2.y}
+                      stroke="#38bdf8"
+                      strokeWidth={4.5}
+                      strokeLinecap="round"
+                    />
+                  ) : isPlayerEdge ? (
+                    <line
+                      x1={p1.x}
+                      y1={p1.y}
+                      x2={p2.x}
+                      y2={p2.y}
+                      stroke="#a78bfa"
+                      strokeWidth={4}
+                      strokeLinecap="round"
+                    />
+                  ) : (
+                    <line
+                      x1={p1.x}
+                      y1={p1.y}
+                      x2={p2.x}
+                      y2={p2.y}
+                      stroke="#334155"
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
+                    />
+                  )}
+
+                  {/* Relaxing edge overlay during active stepping */}
+                  {isRelaxing && (
+                    <line
+                      x1={p1.x}
+                      y1={p1.y}
+                      x2={p2.x}
+                      y2={p2.y}
+                      stroke="#fbbf24"
+                      strokeWidth={4}
+                      strokeLinecap="round"
+                      strokeDasharray="6,4"
+                    />
+                  )}
+
                   {/* Weight Badge */}
                   <rect
                     x={midX - 11}
@@ -159,13 +240,13 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
                     height={18}
                     rx={4}
                     fill="#0f172a"
-                    stroke={isRelaxing ? '#fbbf24' : '#334155'}
-                    strokeWidth={isRelaxing ? 1.5 : 1}
+                    stroke={badgeStroke}
+                    strokeWidth={isBadgeRelaxing || isBadgeOptimal || isBadgePlayer ? 1.5 : 1}
                   />
                   <text
                     x={midX}
                     y={midY + 4}
-                    fill={isRelaxing ? '#fbbf24' : '#94a3b8'}
+                    fill={badgeTextColor}
                     fontSize={11}
                     fontWeight="bold"
                     textAnchor="middle"
@@ -183,16 +264,21 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
               const isVisited = activeVisitedNodes.has(node.id);
               const isCurrent = currentActiveNode === node.id;
               const isRelaxTarget = currentRelaxEdge?.to === node.id;
-              const inPath = optimalPath.includes(node.id);
+              const inOptimal = optimalPath.includes(node.id);
+              const inPlayer = playerPath.includes(node.id);
 
               let fillColor = '#1e293b';
               let strokeColor = '#475569';
               let r = 18;
 
-              if (inPath) {
-                fillColor = '#0369a1';
+              if (inOptimal) {
+                fillColor = isVisited && !isFinalStep ? '#065f46' : '#0369a1';
                 strokeColor = '#38bdf8';
                 r = 20;
+              } else if (inPlayer) {
+                fillColor = isVisited && !isFinalStep ? '#065f46' : '#4c1d95';
+                strokeColor = '#a78bfa';
+                r = 19;
               } else if (isVisited) {
                 fillColor = '#065f46';
                 strokeColor = '#34d399';
@@ -211,17 +297,34 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
 
               return (
                 <g key={node.id} className="cursor-pointer">
+                  {/* Current active step outer ring */}
                   {isCurrent && (
                     <circle
                       cx={x}
                       cy={y}
-                      r={r + 6}
+                      r={r + 6.5}
                       fill="none"
                       stroke={isVisited ? '#10b981' : '#facc15'}
                       strokeWidth={2}
                       opacity={0.8}
                     />
                   )}
+
+                  {/* Player route outer ring for overlapping nodes */}
+                  {inPlayer && inOptimal && (
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={r + 3.5}
+                      fill="none"
+                      stroke="#a78bfa"
+                      strokeWidth={2}
+                      strokeDasharray="4,3"
+                      opacity={0.9}
+                    />
+                  )}
+
+                  {/* Node Circle */}
                   <circle
                     cx={x}
                     cy={y}
@@ -249,13 +352,33 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
                     height={14}
                     rx={3}
                     fill="#020617"
-                    stroke={inPath ? '#38bdf8' : isVisited ? '#10b981' : isRelaxTarget ? '#fbbf24' : '#475569'}
+                    stroke={
+                      inOptimal
+                        ? '#38bdf8'
+                        : inPlayer
+                        ? '#a78bfa'
+                        : isVisited
+                        ? '#10b981'
+                        : isRelaxTarget
+                        ? '#fbbf24'
+                        : '#475569'
+                    }
                     strokeWidth={1}
                   />
                   <text
                     x={x}
                     y={y - r - 4}
-                    fill={inPath ? '#38bdf8' : isVisited ? '#34d399' : isRelaxTarget ? '#fbbf24' : '#cbd5e1'}
+                    fill={
+                      inOptimal
+                        ? '#38bdf8'
+                        : inPlayer
+                        ? '#a78bfa'
+                        : isVisited
+                        ? '#34d399'
+                        : isRelaxTarget
+                        ? '#fbbf24'
+                        : '#cbd5e1'
+                    }
                     fontSize={10}
                     fontFamily="monospace"
                     textAnchor="middle"
