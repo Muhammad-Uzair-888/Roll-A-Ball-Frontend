@@ -42,14 +42,19 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
   for (let i = 0; i <= currentStepIndex && i < trace.length; i++) {
     const step = trace[i];
     if (step.event === 'initialize' && step.node) {
-      activeDistances[step.node] = 0;
+      activeDistances[step.node] = typeof step.distance === 'number' ? step.distance : 0;
       currentActiveNode = step.node;
-    } else if (step.event === 'visit' && step.node && typeof step.distance === 'number') {
+    } else if (step.event === 'visit' && step.node) {
       activeVisitedNodes.add(step.node);
-      activeDistances[step.node] = step.distance;
+      if (typeof step.distance === 'number') {
+        activeDistances[step.node] = step.distance;
+      }
       currentActiveNode = step.node;
-    } else if (step.event === 'relax_edge' && step.from && step.to && typeof step.new_distance === 'number') {
-      activeDistances[step.to] = step.new_distance;
+    } else if (step.event === 'relax_edge' && step.from && step.to) {
+      if (typeof step.new_distance === 'number') {
+        activeDistances[step.to] = step.new_distance;
+      }
+      currentActiveNode = step.from;
       if (i === currentStepIndex) {
         currentRelaxEdge = { from: step.from, to: step.to };
       }
@@ -154,13 +159,13 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
                     height={18}
                     rx={4}
                     fill="#0f172a"
-                    stroke="#334155"
-                    strokeWidth={1}
+                    stroke={isRelaxing ? '#fbbf24' : '#334155'}
+                    strokeWidth={isRelaxing ? 1.5 : 1}
                   />
                   <text
                     x={midX}
                     y={midY + 4}
-                    fill="#94a3b8"
+                    fill={isRelaxing ? '#fbbf24' : '#94a3b8'}
                     fontSize={11}
                     fontWeight="bold"
                     textAnchor="middle"
@@ -177,6 +182,7 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
               const isSource = node.id === sourceNode;
               const isVisited = activeVisitedNodes.has(node.id);
               const isCurrent = currentActiveNode === node.id;
+              const isRelaxTarget = currentRelaxEdge?.to === node.id;
               const inPath = optimalPath.includes(node.id);
 
               let fillColor = '#1e293b';
@@ -187,25 +193,34 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
                 fillColor = '#0369a1';
                 strokeColor = '#38bdf8';
                 r = 20;
-              } else if (isCurrent) {
-                fillColor = '#854d0e';
-                strokeColor = '#facc15';
-                r = 21;
               } else if (isVisited) {
                 fillColor = '#065f46';
                 strokeColor = '#34d399';
+                r = 19;
+              } else if (isCurrent) {
+                fillColor = '#854d0e';
+                strokeColor = '#facc15';
+                r = 20;
               } else if (isSource) {
                 fillColor = '#1e3a8a';
                 strokeColor = '#60a5fa';
               }
 
               const dist = activeDistances[node.id];
-              const distLabel = dist === Infinity ? '∞' : dist.toString();
+              const distLabel = dist === Infinity || dist === undefined ? '∞' : dist.toString();
 
               return (
                 <g key={node.id} className="cursor-pointer">
                   {isCurrent && (
-                    <circle cx={x} cy={y} r={r + 6} fill="none" stroke="#facc15" strokeWidth={1.5} opacity={0.6} />
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={r + 6}
+                      fill="none"
+                      stroke={isVisited ? '#10b981' : '#facc15'}
+                      strokeWidth={2}
+                      opacity={0.8}
+                    />
                   )}
                   <circle
                     cx={x}
@@ -234,13 +249,13 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
                     height={14}
                     rx={3}
                     fill="#020617"
-                    stroke={isVisited ? '#10b981' : '#475569'}
+                    stroke={inPath ? '#38bdf8' : isVisited ? '#10b981' : isRelaxTarget ? '#fbbf24' : '#475569'}
                     strokeWidth={1}
                   />
                   <text
                     x={x}
                     y={y - r - 4}
-                    fill={isVisited ? '#34d399' : '#cbd5e1'}
+                    fill={inPath ? '#38bdf8' : isVisited ? '#34d399' : isRelaxTarget ? '#fbbf24' : '#cbd5e1'}
                     fontSize={10}
                     fontFamily="monospace"
                     textAnchor="middle"
@@ -258,7 +273,7 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
           <div className="text-xs font-semibold text-slate-200 pb-2 mb-3 border-b border-slate-850 flex items-center justify-between">
             <span>Settled Distance Table</span>
             <span className="text-slate-500 text-[11px] font-mono">
-              {activeVisitedNodes.size}/{level.nodes.length}
+              {activeVisitedNodes.size}/{level.nodes.length} visited
             </span>
           </div>
 
@@ -267,6 +282,7 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
               const d = activeDistances[n.id];
               const isSettled = activeVisitedNodes.has(n.id);
               const inFinalPath = optimalPath.includes(n.id);
+              const isRelaxTarget = currentRelaxEdge?.to === n.id;
 
               return (
                 <div
@@ -276,20 +292,40 @@ export const DijkstraView: React.FC<DijkstraViewProps> = ({
                       ? 'bg-sky-950/60 border-sky-800 text-sky-200'
                       : isSettled
                       ? 'bg-emerald-950/30 border-emerald-900/60 text-emerald-200'
+                      : isRelaxTarget
+                      ? 'bg-amber-950/20 border-amber-800/60 text-amber-200'
                       : 'bg-slate-900/40 border-slate-850 text-slate-400'
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold w-6 text-center text-slate-200 bg-slate-800 px-1 py-0.5 rounded">
+                    <span
+                      className={`font-mono font-bold w-6 text-center px-1 py-0.5 rounded ${
+                        isSettled
+                          ? 'bg-emerald-900/60 text-emerald-200'
+                          : isRelaxTarget
+                          ? 'bg-amber-900/60 text-amber-200'
+                          : 'bg-slate-800 text-slate-200'
+                      }`}
+                    >
                       {n.id}
                     </span>
                     <span className="truncate max-w-[120px]">{n.name}</span>
                   </div>
                   <div className="font-mono font-bold">
-                    {d === Infinity ? (
+                    {d === Infinity || d === undefined ? (
                       <span className="text-slate-600">∞</span>
                     ) : (
-                      <span className={inFinalPath ? 'text-sky-300' : isSettled ? 'text-emerald-400' : 'text-slate-300'}>
+                      <span
+                        className={
+                          inFinalPath
+                            ? 'text-sky-300'
+                            : isSettled
+                            ? 'text-emerald-400'
+                            : isRelaxTarget
+                            ? 'text-amber-400'
+                            : 'text-slate-300'
+                        }
+                      >
                         {d}
                       </span>
                     )}

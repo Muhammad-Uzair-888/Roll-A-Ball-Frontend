@@ -30,9 +30,6 @@ export const KnapsackView: React.FC<KnapsackViewProps> = ({
   const dpTable = result?.trace?.dp_table;
   const selectedCoinIds = new Set(result?.selected_coin_ids || []);
 
-  const maxRows = coins.length + 1;
-  const visibleRowIndex = Math.min(maxRows - 1, currentStepIndex);
-
   const playerCollectedCoins = level.coins.filter((c) =>
     playerStats.collectedCoinIds.includes(c.id)
   );
@@ -94,13 +91,13 @@ export const KnapsackView: React.FC<KnapsackViewProps> = ({
             {coins.map((coin, idx) => {
               const isSelectedByAlgo = selectedCoinIds.has(coin.id);
               const isPlayerCollected = playerStats.collectedCoinIds.includes(coin.id);
-              const isCurrentRow = idx + 1 === visibleRowIndex;
+              const isCurrentCoin = currentStepIndex >= 0 && idx === currentStepIndex;
 
               return (
                 <div
                   key={coin.id}
                   className={`p-2.5 rounded-lg border transition-all ${
-                    isCurrentRow
+                    isCurrentCoin
                       ? 'ring-1 ring-amber-400 bg-amber-950/30 border-amber-600'
                       : isSelectedByAlgo
                       ? 'bg-amber-950/20 border-amber-800/80 text-amber-200'
@@ -182,7 +179,7 @@ export const KnapsackView: React.FC<KnapsackViewProps> = ({
                 <tbody>
                   {/* Row 0: Base */}
                   <tr className="hover:bg-slate-900/30">
-                    <td className="p-1.5 border-r border-b border-slate-800 bg-slate-900 text-slate-400 sticky left-0 text-left pl-2">
+                    <td className="p-1.5 border-r border-b border-slate-800 bg-slate-900 text-slate-400 sticky left-0 text-left pl-2 font-bold">
                       0
                     </td>
                     {Array.from({ length: budget + 1 }, (_, w) => (
@@ -195,8 +192,7 @@ export const KnapsackView: React.FC<KnapsackViewProps> = ({
                   {/* Rows 1 to N */}
                   {coins.map((coin, idx) => {
                     const rowIdx = idx + 1;
-                    const isVisible = rowIdx <= visibleRowIndex;
-                    const isCurrentRow = rowIdx === visibleRowIndex;
+                    const isCurrentRow = currentStepIndex >= 0 && rowIdx === currentStepIndex + 1;
                     const isChosen = selectedCoinIds.has(coin.id);
 
                     return (
@@ -219,9 +215,9 @@ export const KnapsackView: React.FC<KnapsackViewProps> = ({
                         </td>
 
                         {Array.from({ length: budget + 1 }, (_, w) => {
-                          const val = isVisible ? dpTable[rowIdx]?.[w] : '-';
+                          const val = dpTable[rowIdx]?.[w] ?? 0;
                           const prevVal = dpTable[rowIdx - 1]?.[w] ?? 0;
-                          const changed = isVisible && typeof val === 'number' && val > prevVal;
+                          const changed = typeof val === 'number' && val > prevVal;
 
                           return (
                             <td
@@ -231,9 +227,7 @@ export const KnapsackView: React.FC<KnapsackViewProps> = ({
                               } ${
                                 changed
                                   ? 'text-amber-400 font-bold bg-amber-500/10'
-                                  : isVisible
-                                  ? 'text-slate-400'
-                                  : 'text-slate-700'
+                                  : 'text-slate-400'
                               }`}
                             >
                               {val}
